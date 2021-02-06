@@ -155,6 +155,46 @@ app.post("/askQuery", function(req, res){
   });
 });
 
+app.get("/like/:user", function(req, res){
+  Solution.findOne({_id: req.params.user}, function(err, foundSolution){
+    if(!err){
+    foundSolution.liked = true;
+    foundSolution.save(function(er){
+      if(er){res.send(er);}
+    });
+    Peer.findOne({name: foundSolution.answeredBy}, function(err, foundPeer){
+      foundPeer.coins+=5;
+      foundPeer.save(function(er){
+        if(er){res.send(er);}
+      });
+    });} else {
+      console.log(err);
+    }
+  });
+  res.redirect("/askedByMe");
+});
+
+app.get("/dislike/:user", function(req, res){
+  Solution.findOne({_id: req.params.user}, function(err, foundSolution){
+    if(!err){
+    foundSolution.disliked = true;
+    Query.findOne({query: foundSolution.query}, function(er, foundQuery){
+      if(!er){
+        foundQuery.answered= false;
+        foundQuery.save();
+      } else {
+        console.log(er);
+      }
+    });
+    foundSolution.save(function(er){
+      if(er){res.send(er);}
+    });} else {
+      console.log(err);
+    }
+  });
+  res.redirect("/askedByMe");
+});
+
 
 app.get("/", function(req, res) {
   res.render("home");
