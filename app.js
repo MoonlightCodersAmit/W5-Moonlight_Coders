@@ -11,6 +11,7 @@ app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({
   extended: true
 }));
+
 mongoose.connect("mongodb://localhost:27017/peerDB", {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -76,13 +77,13 @@ app.post("/register", function(req, res) {
     if (!err) {
       Peer.find({}, function(er, foundPeers){
         if(er){console.log(er);}
-        else if(foundPeers.length==1){
+        else {if(foundPeers.length==1){
           noSol.save(function(e){
             if(e){
               console.log(e);
             }
           });
-        }
+        }}
       });
       res.redirect("/login");
     } else {
@@ -130,6 +131,64 @@ app.get("/profile/:user", function(req, res) {
   });
 });
 
+var sol=[];
+var qur=[];
+app.get("/askedByMe", function(req, res){
+  Query.find({askedBy: currentPeer}, function(err, foundQueries){
+    if(!err){
+    var i=0;
+    var j=0;
+    sol=[];
+    qur=[];
+      foundQueries.forEach(function(q){
+        qur.push(q);
+        j++;
+        Solution.find({query: q.query, disliked: false}, function(er, foundSolutions){
+          if(!er){
+            if(foundSolutions[0]!=null){
+              // console.log("FOUND and pushed: "+foundSolutions[0]);
+              sol.push(foundSolutions[0]);
+              //sol.push(foundSolution[0]);
+            } else {
+              // console.log("pushed noSol");
+              sol.push(noSol);
+            }
+          } else {
+            console.log("This"+er);
+          }
+        });
+      });
+      // console.log("Qur: "+qur);
+      // console.log("Sol: "+sol);
+      res.redirect("/queriesAskedByMe");
+    } else {
+      res.send(err);
+    }
+  });
+});
+
+app.get("/queriesAskedByMe", function(req, res){
+  res.render("askedByMe", {
+    Peer: currentPeer,
+    Coins: currentPeerCoins,
+    queries: qur,
+    s: sol
+  });
+});
+
+app.get("/askQuery", function(req, res){
+  if(currentPeerCoins>2){
+  res.render("askQuery", {
+    Peer: currentPeer,
+    Coins: currentPeerCoins
+  });} else {
+    res.render("dont", {
+      Peer: currentPeer,
+      Coins: currentPeerCoins
+    });     //kdfja;jfaj ;df;ia
+  }
+});
+
 app.post("/askQuery", function(req, res){
   const newQuery = new Query({
     query: req.body.query,
@@ -153,6 +212,79 @@ app.post("/askQuery", function(req, res){
       res.send(err);
     }
   });
+});
+
+app.get("/askedByPeers", function(req, res){
+  Query.find({answered:false, askedBy: {$ne: currentPeer}}, function(err, foundQueries){
+    res.render("askedByPeers", {
+      Peer: currentPeer,
+      Coins: currentPeerCoins,
+      queries: foundQueries
+    });
+  });
+});
+
+var ab=[];
+var fsol=[];
+app.get("/answeredByMe", function(req, res){
+  Solution.find({answeredBy: currentPeer}, function(err, foundSolutions){
+    if(!err){
+      ab=[];
+      fsol=[];
+      // console.log("Lenght of foundsolutions: "+foundSolutions.length);
+      foundSolutions.forEach(function(s){
+      fsol.push(s);
+        // console.log("Fsol pushed:"+s);
+        // console.log("Length of Fsol: "+fsol.length);
+        let answeredQuery = s.query;
+        Query.find({query: answeredQuery}, function(er, foundQuery){
+          if(!er){
+            if(foundQuery[0]!=null){
+              ab.push(foundQuery[0]);
+            }
+            // console.log("Ab Pushed:"+foundQuery[0]);
+          } else {
+            console.log(er);
+          }
+        });
+      });
+    } else {
+      console.log(err);
+    }
+    res.redirect("/queriesAnsweredByMe");
+  });
+});
+
+app.get("/queriesAnsweredByMe", function(req, res){
+   // console.log("askedBy: "+ab);
+   // console.log("foundSolutions: "+fsol);
+  res.render("answeredByMe", {
+    Peer: currentPeer,
+    Coins: currentPeerCoins,
+    sol: fsol,
+    qs: ab
+  });
+});
+
+app.post("/answered/:user", function(req, res){
+  console.log(req.body.ans);
+  Query.findOne({_id: req.params.user}, function(err, foundQuery){
+    foundQuery.answered = true;
+    const sol = new Solution({
+      query: foundQuery.query,
+      solution: req.body.ans,
+      answeredBy: currentPeer,
+      liked: false,
+      disliked: false
+    });
+    foundQuery.save();
+    sol.save(function(e){
+      if(e){
+        console.log(e);
+      }
+    });
+  });
+  res.redirect("/askedByPeers");
 });
 
 app.get("/like/:user", function(req, res){
@@ -195,14 +327,36 @@ app.get("/dislike/:user", function(req, res){
   res.redirect("/askedByMe");
 });
 
-
-app.get("/", function(req, res) {
-  res.render("home");
+app.get("/add", function(req, res){
+  Peer.findOne({name: currentPeer}, function(er, user){
+    user.coins=user.coins+10;
+    currentPeerCoins+=10;
+    user.save(function(e){
+      if(e){console.log(e);}
+      else{
+        res.redirect("/video");
+      }
+    });
+  });
 });
 
+app.get("/video", function(req, res){
+  res.render("video",{
+    Peer: currentPeer
+  });
+});
 
+app.get("/offers", function(req, res) {
+  res.render("offers",{
+    Peer: currentPeer,
+    Coins: currentPeerCoins
+  });
+});
+
+app.get("/logout", function(req, res) {
+  res.redirect("/");
+});
 
 app.listen(3000, function() {
   console.log("server is running at port 3000");
-});
-
+})
